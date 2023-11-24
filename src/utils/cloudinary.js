@@ -15,6 +15,8 @@ const uploadCloudinary = async (localFilePAth)=>{
             resource_type:"auto"
         })
 
+        fs.unlinkSync(localFilePAth)
+
         console.log("File uploaded on cloudinary",response.url)
         return response;
 
@@ -23,3 +25,5 @@ const uploadCloudinary = async (localFilePAth)=>{
         return null;
     }
 }   
+
+export {uploadCloudinary}
