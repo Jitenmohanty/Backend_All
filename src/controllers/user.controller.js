@@ -197,20 +197,21 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
     };
 
     const { accessToken, refreshToken } =
-      await generateAccessTokenAndRefreshToken(user._id)
-        .status(200)
-        .cookie("accessToken", accessToken, options)
-        .cookie("refreshToken", refreshToken, options)
-        .json(
-          new ApiResponse(
-            200,
-            {
-              accessToken,
-              refreshToken,
-            },
-            "Access token refreshed"
-          )
-        );
+      await generateAccessTokenAndRefreshToken(user._id);
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", refreshToken, options)
+      .json(
+        new ApiResponse(
+          200,
+          {
+            accessToken,
+            refreshToken,
+          },
+          "Access token refreshed"
+        )
+      );
   } catch (error) {
     throw new ApiError(401, error?.message || "Invalid refresh token");
   }
@@ -239,32 +240,31 @@ const changeCurrentUserPassword = asyncHandler(async (req, res) => {
 const getCurrentUser = asyncHandler(async (req, res) => {
   return res
     .status(200)
-    .json(200, req.user, "Current user fetched successfully");
+    .json(new ApiResponse(200, req.user, "Current user fetched successfully"));
 });
 
-const updateUserDetails = asyncHandler(async(req,res)=>{
-  const {fullName , email} = req.body;
+const updateUserDetails = asyncHandler(async (req, res) => {
+  const { fullName, email } = req.body;
 
-  if(!fullName || !email){
-    throw new ApiError(400,"All fields are required!")
+  if (!fullName || !email) {
+    throw new ApiError(400, "All fields are required!");
   }
 
   const user = await User.findByIdAndUpdate(
     req.user?._id,
     {
-      $set:{
+      $set: {
         fullName,
-        email
-      }
+        email,
+      },
     },
-    {new:true}
-  ).select("-password")
+    { new: true }
+  ).select("-password");
 
   return res
-  .status(200)
-  .json(new ApiResponse(200, user, "Account details updated successfully"))
-
-})
+    .status(200)
+    .json(new ApiResponse(200, user, "Account details updated successfully"));
+});
 
 const updateUserAvatar = asyncHandler(async (req, res) => {
   const avatarLocalPath = req.file?.path;
@@ -290,11 +290,11 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   ).select("-password");
 
   return res
-        .status(200)
-        .json(new ApiResponse(200, user, "Avatar image updated Successfully!"))
+    .status(200)
+    .json(new ApiResponse(200, user, "Avatar image updated Successfully!"));
 });
 
-const updateUserCoverImage = asyncHandler(async(req,res)=>{
+const updateUserCoverImage = asyncHandler(async (req, res) => {
   const coverImageLocalPath = req.file?.path;
 
   if (!coverImageLocalPath) {
@@ -318,11 +318,91 @@ const updateUserCoverImage = asyncHandler(async(req,res)=>{
   ).select("-password");
 
   return res
-        .status(200)
-        .json(new ApiResponse(200, user, "Avatar image updated Successfully!"))
+    .status(200)
+    .json(new ApiResponse(200, user, "Avatar image updated Successfully!"));
+});
+
+const getUserChanelProfile = asyncHandler(async(req,res)=>{
+
+  const {username} = req.params;
+
+  if(!username){
+    throw new ApiError(400,"username is missing")
+  }
+  const chanel = await User.aggregate([
+    {
+        $match:{
+          username:username?.toLowerCase()
+        }
+    },
+    {
+      $lookup:{
+        from:"subscriptions",
+        localField:"_id",
+        foreignField:"channel",
+        as:"subscribers"
+      }
+    },
+    {
+      $lookup:{
+        from:"subscriptions",
+        localField:"_id",
+        foreignField:"subscriber",
+        as:"subscribedTo"
+      }
+    },
+    {
+      $addFields:{
+        subscribersCount:{
+          $size:"$subscribers"
+        },
+        channelsSubscribedToCount:{
+          $size:"$subscribedTo"
+        },
+        isSubscribed:{
+          $cond:{
+            if:{$in:[req.user?._id,"$subscribers.subscriber"]},
+            then:true,
+            else:false
+          }
+        }
+      }
+    },
+    {
+        $project:{
+          fullName:1,
+          username:1,
+          email:1,
+          avatar:1,
+          coverImage:1,
+          subscribersCount: 1,
+          channelsSubscribedToCount: 1,
+          isSubscribed: 1,
+        }
+    }
+  ])
+
+  if(!chanel?.length){
+    throw new ApiError(404, "channel does not exists")
+  }
+
+  return res
+    .status(200)
+    .json(
+      new ApiError(200, chanel[0], "User chanel fetched successfully.")
+    )
 
 })
 
-
-
-export { registerUser, loginUser, logoutUser, refreshAccessToken, getCurrentUser, updateUserCoverImage, updateUserAvatar, updateUserDetails, changeCurrentUserPassword};
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  refreshAccessToken,
+  getCurrentUser,
+  updateUserCoverImage,
+  updateUserAvatar,
+  updateUserDetails,
+  changeCurrentUserPassword,
+  getUserChanelProfile
+};
